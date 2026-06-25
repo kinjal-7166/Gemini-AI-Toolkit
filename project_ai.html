@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gemini AI Toolkit</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-100 text-slate-900">
+  <div class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+
+    <div class="bg-white rounded-2xl shadow p-4 md:p-5 sticky top-0 z-10">
+      <h1 class="text-2xl font-bold">Gemini AI Toolkit</h1>
+      <p class="text-sm text-slate-500 mb-3">All tasks use one shared Gemini API key.</p>
+      <div class="flex flex-col md:flex-row gap-3">
+        <input id="apiKey" type="password" placeholder="Paste Gemini API key"
+          class="flex-1 border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-400" />
+        <button id="saveKeyBtn" class="bg-blue-600 text-white px-4 py-3 rounded-xl">Save Key</button>
+      </div>
+    </div>
+
+    <div id="app" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+  </div>
+
+  <script>
+    const MODEL = "gemini-3.5-flash";
+    const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+    const apiKey = document.getElementById("apiKey");
+    apiKey.value = localStorage.getItem("gemini_api_key") || "";
+    document.getElementById("saveKeyBtn").onclick = () => {
+      localStorage.setItem("gemini_api_key", apiKey.value.trim());
+      alert("Key saved");
+    };
+
+    const getKey = () => {
+      const key = apiKey.value.trim();
+      if (!key) throw new Error("Please enter your Gemini API key.");
+      return key;
+    };
+
+    async function geminiText(prompt) {
+      const res = await fetch(`${ENDPOINT}?key=${encodeURIComponent(getKey())}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+      const data = await res.json();
+      return data?.candidates?.[0]?.content?.parts?.map(p => p.text).join("") || "";
+    }
+
+    async function geminiJSON(prompt, schema) {
+      const res = await fetch(`${ENDPOINT}?key=${encodeURIComponent(getKey())}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${prompt}\n\nReturn JSON only:\n${schema}` }] }],
+          generationConfig: { response_mime_type: "application/json" }
+        })
+      });
+      const data = await res.json();
+      return JSON.parse(data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
+    }
+
+    const card = (title, inner) => `
+      <div class="bg-white rounded-2xl shadow p-4 space-y-3">
+        <h2 class="text-lg font-semibold">${title}</h2>
+        ${inner}
+      </div>`;
+
+    document.getElementById("app").innerHTML = `
+      ${card("Simple chatbot", `
+        <textarea id="chatInput" class="w-full border rounded-xl p-3 min-h-24" placeholder="Ask anything..."></textarea>
+        <button id="chatBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Send</button>
+        <div id="chatOut" class="bg-slate-50 border rounded-xl p-3 min-h-16">Reply will appear here.</div>
+      `)}
+
+      ${card("Prompt practice", `
+        <textarea id="promptInput" class="w-full border rounded-xl p-3 min-h-24" placeholder="Paste text or write a topic..."></textarea>
+        <div class="flex flex-wrap gap-2">
+          <button class="mode bg-slate-200 px-3 py-2 rounded-xl" data-mode="summary">Summarize</button>
+          <button class="mode bg-slate-200 px-3 py-2 rounded-xl" data-mode="captions">Captions</button>
+          <button class="mode bg-slate-200 px-3 py-2 rounded-xl" data-mode="formal">Formal</button>
+          <button class="mode bg-slate-200 px-3 py-2 rounded-xl" data-mode="certificate">Certificate</button>
+          <button class="mode bg-slate-200 px-3 py-2 rounded-xl" data-mode="compare">Compare</button>
+        </div>
+        <div class="flex gap-2">
+          <button id="promptRunBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Run</button>
+          <button id="promptDemoBtn" class="bg-slate-200 px-4 py-2 rounded-xl">Demo</button>
+        </div>
+        <div id="promptOut" class="bg-slate-50 border rounded-xl p-3 min-h-16">Result will appear here.</div>
+      `)}
+
+      ${card("Ask AI Anything", `
+        <textarea id="askInput" class="w-full border rounded-xl p-3 min-h-24" placeholder="What do you want to know?"></textarea>
+        <button id="askRunBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Ask</button>
+        <div id="askOut" class="bg-slate-50 border rounded-xl p-3 min-h-16">Answer will appear here.</div>
+      `)}
+
+      ${card("Summarizer", `
+        <textarea id="sumInput" class="w-full border rounded-xl p-3 min-h-24" placeholder="Paste a long article or notes..."></textarea>
+        <div class="flex gap-2">
+          <button id="sumBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Summarize</button>
+          <button id="sumDemoBtn" class="bg-slate-200 px-4 py-2 rounded-xl">Demo</button>
+        </div>
+        <div id="sumOut" class="bg-blue-50 border border-blue-200 rounded-xl p-3 min-h-16">Summary will appear here.</div>
+      `)}
+
+      ${card("Tone converter", `
+        <textarea id="toneInput" class="w-full border rounded-xl p-3 min-h-24" placeholder="Write a neutral paragraph..."></textarea>
+        <div class="flex flex-wrap gap-2">
+          <button class="tone bg-slate-200 px-3 py-2 rounded-xl" data-tone="professional">Professional</button>
+          <button class="tone bg-slate-200 px-3 py-2 rounded-xl" data-tone="friendly">Friendly</button>
+          <button class="tone bg-slate-200 px-3 py-2 rounded-xl" data-tone="formal">Formal</button>
+          <button class="tone bg-slate-200 px-3 py-2 rounded-xl" data-tone="casual">Casual</button>
+        </div>
+        <button id="toneBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Convert tone</button>
+        <div id="toneOut" class="bg-slate-50 border rounded-xl p-3 min-h-16">Tone-converted text will appear here.</div>
+      `)}
+
+      ${card("Caption generator", `
+        <input id="capTopic" class="w-full border rounded-xl p-3" placeholder="e.g. Launching my AI project" />
+        <button id="capBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Generate</button>
+        <div id="capOut" class="bg-slate-50 border rounded-xl p-3 min-h-16 whitespace-pre-wrap">Captions will appear here.</div>
+      `)}
+
+      ${card("Certificate generator", `
+        <div class="grid md:grid-cols-2 gap-2">
+          <input id="certName" class="border rounded-xl p-3" placeholder="Name" />
+          <input id="certCourse" class="border rounded-xl p-3" placeholder="Role / Course" />
+          <input id="certDuration" class="border rounded-xl p-3" placeholder="Duration" />
+          <input id="certExtra" class="border rounded-xl p-3" placeholder="Extra details (optional)" />
+        </div>
+        <div class="flex gap-2">
+          <button id="certBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Generate</button>
+          <button id="certCopyBtn" class="bg-slate-200 px-4 py-2 rounded-xl">Copy</button>
+        </div>
+        <div class="border rounded-2xl p-4 bg-gradient-to-b from-white to-slate-50 text-center">
+          <div class="text-xs tracking-[0.25em] text-slate-500 uppercase">Certificate of Completion</div>
+          <div class="text-xl font-bold mt-2">AI Project Series</div>
+          <div id="certNameDisplay" class="text-2xl font-semibold mt-3">Your Name</div>
+          <div id="certRoleDisplay" class="text-slate-600 mt-2">has successfully completed the course.</div>
+          <div id="certDurationDisplay" class="text-slate-500 mt-2">Duration: —</div>
+          <div id="certBlurbDisplay" class="mt-3 p-3 border rounded-xl bg-slate-50 text-sm">Certificate text generated by AI will appear here.</div>
+        </div>
+      `)}
+
+      ${card("Resume booster", `
+        <textarea id="resumeInput" class="w-full border rounded-xl p-3 min-h-24" placeholder="- Built a chatbot using Gemini API"></textarea>
+        <div class="flex gap-2">
+          <button id="resumeBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Boost</button>
+          <button id="resumeRegenBtn" class="bg-slate-200 px-4 py-2 rounded-xl">Regenerate</button>
+        </div>
+        <div class="grid md:grid-cols-2 gap-2">
+          <div><div class="text-sm text-slate-500 mb-1">Before</div><div id="resumeBefore" class="bg-slate-50 border rounded-xl p-3 min-h-20"></div></div>
+          <div><div class="text-sm text-slate-500 mb-1">After</div><div id="resumeAfter" class="bg-slate-50 border rounded-xl p-3 min-h-20"></div></div>
+        </div>
+      `)}
+
+      ${card("Theme suggestions", `
+        <textarea id="themeInput" class="w-full border rounded-xl p-3 min-h-24" placeholder="e.g. Minimal AI study planner dashboard for students"></textarea>
+        <button id="themeBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl">Suggest theme</button>
+        <div id="themeSwatches" class="flex gap-2 flex-wrap"></div>
+        <div id="themeInfo" class="bg-slate-50 border rounded-xl p-3 text-sm">Theme details will appear here.</div>
+        <pre id="themeJson" class="bg-slate-900 text-slate-100 rounded-xl p-3 text-xs overflow-auto">Structured JSON will appear here.</pre>
+      `)}
+    `;
+
+    let mode = "summary", tone = "professional";
+    document.querySelectorAll(".mode").forEach(b => b.onclick = () => { document.querySelectorAll(".mode").forEach(x => x.classList.remove("bg-blue-600","text-white")); b.classList.add("bg-blue-600","text-white"); mode = b.dataset.mode; });
+    document.querySelectorAll(".tone").forEach(b => b.onclick = () => { document.querySelectorAll(".tone").forEach(x => x.classList.remove("bg-blue-600","text-white")); b.classList.add("bg-blue-600","text-white"); tone = b.dataset.tone; });
+
+    const set = (id, text) => document.getElementById(id).textContent = text;
+    const val = id => document.getElementById(id).value.trim();
+    const copy = id => navigator.clipboard.writeText(document.getElementById(id).textContent.trim()).catch(()=>{});
+
+    document.getElementById("chatBtn").onclick = async () => { const o = chatOut; o.textContent = "Thinking..."; try { o.textContent = await geminiText(val("chatInput")); } catch(e){ o.textContent = e.message; } };
+    document.getElementById("promptDemoBtn").onclick = () => set("promptInput", "I want to build a small AI study planner web app using the Gemini API.");
+    document.getElementById("promptRunBtn").onclick = async () => {
+      const t = val("promptInput"), o = promptOut; if (!t) return;
+      const p = { summary:"Summarize in 3-4 bullet points:\n\n", captions:"Create 3 short social captions about this topic:\n\n", formal:"Rewrite in a formal style:\n\n", certificate:"Write a short certificate-style blurb for this:\n\n", compare:"Show a vague prompt and a specific prompt for this idea, then explain the difference:\n\n" }[mode];
+      o.textContent = "Running..."; try { o.textContent = await geminiText(p + t); } catch(e){ o.textContent = e.message; }
+    };
+    document.getElementById("askRunBtn").onclick = async () => { const o = askOut; o.textContent = "Thinking..."; try { o.textContent = await geminiText("Answer in 2-4 sentences:\n\n" + val("askInput")); } catch(e){ o.textContent = e.message; } };
+    document.getElementById("sumDemoBtn").onclick = () => set("sumInput", "This is a sample long text explaining that the best way to learn AI tools is by building small projects and shipping them quickly.");
+    document.getElementById("sumBtn").onclick = async () => { const t = val("sumInput"), o = sumOut; if (!t) return; o.textContent = "Summarizing..."; try { o.textContent = await geminiText("Summarize this in 3-5 short sentences, beginner-friendly:\n\n" + t); } catch(e){ o.textContent = e.message; } };
+    document.getElementById("toneBtn").onclick = async () => { const t = val("toneInput"), o = toneOut; if (!t) return; o.textContent = "Converting..."; try { o.textContent = await geminiText(`Rewrite this text in a ${tone} tone. Reply with only the rewritten text:\n\n` + t); } catch(e){ o.textContent = e.message; } };
+    document.getElementById("capBtn").onclick = async () => { const o = capOut; o.textContent = "Generating..."; try { const d = await geminiJSON(`Create social media captions for: "${val("capTopic")}"`, `{ "instagram":"string", "linkedin":"string", "general":"string" }`); o.textContent = `Instagram: ${d.instagram}\n\nLinkedIn: ${d.linkedin}\n\nGeneral: ${d.general}`; } catch(e){ o.textContent = e.message; } };
+    document.getElementById("certBtn").onclick = async () => {
+      const name = val("certName") || "Student", course = val("certCourse") || "AI Course", duration = val("certDuration") || "—", extra = val("certExtra");
+      certNameDisplay.textContent = name;
+      certRoleDisplay.textContent = `${name} has successfully completed ${course}.`;
+      certDurationDisplay.textContent = `Duration: ${duration}`;
+      certBlurbDisplay.textContent = "Generating...";
+      try {
+        const d = await geminiJSON(`Create a certificate output for:\n${JSON.stringify({ name, course, duration, extra }, null, 2)}`, `{ "recipientName":"string", "courseTitle":"string", "durationText":"string", "blurb":"string" }`);
+        certNameDisplay.textContent = d.recipientName || name;
+        certRoleDisplay.textContent = d.courseTitle || `${name} has successfully completed ${course}.`;
+        certDurationDisplay.textContent = d.durationText || `Duration: ${duration}`;
+        certBlurbDisplay.textContent = d.blurb || "Certificate text generated by AI.";
+      } catch(e){ certBlurbDisplay.textContent = e.message; }
+    };
+    document.getElementById("certCopyBtn").onclick = () => copy("certBlurbDisplay");
+    document.getElementById("resumeBtn").onclick = async () => { const t = val("resumeInput"); if (!t) return; resumeBefore.textContent = t; resumeAfter.textContent = "Boosting..."; try { resumeAfter.textContent = await geminiText("You are a resume expert. Rewrite these bullets to be concise, impact-focused, and clearer. Return only the improved bullets:\n\n" + t); } catch(e){ resumeAfter.textContent = e.message; } };
+    document.getElementById("resumeRegenBtn").onclick = () => document.getElementById("resumeBtn").click();
+    document.getElementById("themeBtn").onclick = async () => {
+      const d = val("themeInput"); if (!d) return;
+      themeSwatches.innerHTML = ""; themeInfo.textContent = "Generating theme..."; themeJson.textContent = "Requesting structured JSON...";
+      try {
+        const j = await geminiJSON(`Suggest a UI theme for this project: "${d}". Include palette and fonts.`, `{ "paletteName":"string", "colors":[{ "name":"string", "hex":"string" }], "fonts":{ "heading":"string", "body":"string" }, "backgroundIdea":"string", "notes":"string" }`);
+        (j.colors || []).forEach(c => {
+          const s = document.createElement("div");
+          s.className = "w-14 h-14 rounded-xl border flex items-end justify-center text-[10px] text-white p-1";
+          s.style.background = c.hex || "#64748b";
+          s.textContent = (c.name || "color").slice(0, 8);
+          themeSwatches.appendChild(s);
+        });
+        themeInfo.innerHTML = `<strong>Palette:</strong> ${j.paletteName || "—"}<br><strong>Fonts:</strong> ${j.fonts?.heading || "—"} / ${j.fonts?.body || "—"}<br><strong>Background:</strong> ${j.backgroundIdea || "—"}<br><strong>Notes:</strong> ${j.notes || "—"}`;
+        themeJson.textContent = JSON.stringify(j, null, 2);
+      } catch(e){ themeInfo.textContent = e.message; }
+    };
+  </script>
+</body>
+</html>
